@@ -320,6 +320,10 @@
   }
   .ready-stamp b{color:#D7E4AC;font-size:.95rem;}
   .summary .btn-primary{width:100%;justify-content:center;margin-bottom:10px;}
+  .btn-cash{background:var(--pickle);border-color:var(--pickle);color:var(--cream);box-shadow:0 4px 0 var(--pickle-dark);}
+  .btn-cash:hover{box-shadow:0 6px 0 var(--pickle-dark);}
+  .btn-cash:active{transform:translateY(1px);box-shadow:0 2px 0 var(--pickle-dark);}
+  .summary .btn-cash{width:100%;justify-content:center;margin-bottom:10px;}
   .summary .btn-ghost-dark{
     width:100%;justify-content:center;background:transparent;color:var(--paper-light);
     border-color:rgba(251,246,234,.4);
@@ -579,8 +583,9 @@
           <div class="summary-total"><span>Estimated total</span><span id="summaryTotal">$0.00</span></div>
           <div class="ready-stamp" id="readyStamp">Choose a pickup or delivery day to see your ready date.</div>
           <button class="btn btn-primary" id="sendOrderBtn">Pay with Square</button>
+          <button class="btn btn-cash" id="cashOrderBtn" type="button">Pay Cash at Pickup/Delivery</button>
           <button class="btn-ghost-dark btn" id="copyOrderBtn" type="button">Copy order details</button>
-          <small id="orderHelpText">You'll be sent to a secure Square checkout page to pay by card. Your order and ready date are included automatically.</small>
+          <small id="orderHelpText">Pay by card now through a secure Square checkout, or choose cash and pay when you get your order. Either way, your order and ready date are included automatically.</small>
           <small style="display:block;margin-top:8px;">By placing an order, you agree to our <a href="terms.html" style="color:inherit;text-decoration:underline;">Terms of Service</a> and <a href="privacy.html" style="color:inherit;text-decoration:underline;">Privacy Policy</a>.</small>
         </div>
       </div>
@@ -992,6 +997,24 @@
         showToast('Checkout isn\'t connected yet — use "Copy order details" and email it for now.');
       });
   });
+
+  document.getElementById('cashOrderBtn').addEventListener('click', function(){
+    var items = getSelectedItems();
+    if(items.length === 0){
+      showToast('Pick at least one flavor first.');
+      return;
+    }
+    if(!state.fulfillment){
+      showToast('Choose a pickup or delivery day first.');
+      return;
+    }
+    var body = 'PAYMENT METHOD: Cash — to be paid at pickup/delivery\n\n' + buildOrderText();
+    var subject = 'Cash order — ' + (document.getElementById('custName').value.trim() || 'new customer');
+    var mailto = 'mailto:sourpussbakery79@gmail.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    window.location.href = mailto;
+    showToast('Opening your email app to send the order — cash is due when you get your bagels.');
+  });
+
 
   document.getElementById('copyOrderBtn').addEventListener('click', function(){
     var text = buildOrderText();
