@@ -260,7 +260,15 @@
     display:flex;align-items:center;justify-content:center;padding:0;
   }
   .qty-sm button:hover{background:var(--ink);color:var(--paper-light);}
-  .qty-sm output{font-family:'Space Mono',monospace;min-width:1.1em;text-align:center;font-weight:700;font-size:.82rem;}
+  .qty-sm output, .qty-sm .qty-input{font-family:'Space Mono',monospace;text-align:center;font-weight:700;font-size:.82rem;}
+  .qty-sm .qty-input{
+    width:2.6em;min-width:1.1em;border:1px solid var(--line);border-radius:3px;
+    background:var(--paper-light);color:var(--ink);padding:2px 1px;
+    -moz-appearance:textfield;
+  }
+  .qty-sm .qty-input::-webkit-outer-spin-button,
+  .qty-sm .qty-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .qty-sm .qty-input:focus{outline:2px solid var(--brick);outline-offset:1px;}
   .qty{display:flex;align-items:center;gap:8px;}
   .qty button{
     width:28px;height:28px;border-radius:50%;border:1.5px solid var(--ink);background:var(--paper-light);
@@ -534,7 +542,7 @@
       <div class="section-head">
         <span class="eyebrow">Build your batch</span>
         <h2>Pick your bagels, pick your day</h2>
-        <p>Every order needs at least two days' notice — that's how long it takes us to mix, shape, and bake it right. Choose your flavors and your pickup or delivery day below, and we'll tell you exactly when it'll be ready.</p>
+        <p>Every order needs at least two days' notice — that's how long it takes us to mix, shape, and bake it right. Choose your flavors and your pickup or delivery day below, and we'll tell you exactly when it'll be ready. Ordering in bulk? Type a quantity directly into any flavor's box instead of clicking.</p>
       </div>
 
       <div class="order-grid">
@@ -783,7 +791,7 @@
         '<span class="pname-sm">' + f.name + '</span>' +
         '<div class="qty-sm">' +
           '<button type="button" data-action="minus" data-id="' + f.id + '" aria-label="Fewer ' + f.name + '">−</button>' +
-          '<output id="qty-' + f.id + '">0</output>' +
+          '<input type="number" class="qty-input" id="qty-' + f.id + '" data-id="' + f.id + '" value="0" min="0" step="1" inputmode="numeric" aria-label="Quantity of ' + f.name + '">' +
           '<button type="button" data-action="plus" data-id="' + f.id + '" aria-label="More ' + f.name + '">+</button>' +
         '</div>';
       list.appendChild(row);
@@ -801,9 +809,27 @@
     var id = btn.getAttribute('data-id');
     var delta = btn.getAttribute('data-action') === 'plus' ? 1 : -1;
     state.qty[id] = Math.max(0, state.qty[id] + delta);
-    document.getElementById('qty-' + id).textContent = state.qty[id];
+    document.getElementById('qty-' + id).value = state.qty[id];
     renderSummary();
   });
+
+  // Typing a custom amount directly into the field (e.g. for wholesale orders)
+  picker.addEventListener('input', function(e){
+    var input = e.target.closest('.qty-input');
+    if(!input) return;
+    var id = input.getAttribute('data-id');
+    var raw = parseInt(input.value, 10);
+    var clean = isNaN(raw) || raw < 0 ? 0 : raw;
+    state.qty[id] = clean;
+    renderSummary();
+  });
+
+  // Clean up the field on blur (e.g. empty or negative entries snap back to a valid number)
+  picker.addEventListener('blur', function(e){
+    var input = e.target.closest('.qty-input');
+    if(!input) return;
+    input.value = state.qty[input.getAttribute('data-id')];
+  }, true);
 
   // ---------- Render fulfillment options ----------
   var fulfillWrap = document.getElementById('fulfillOptions');
