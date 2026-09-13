@@ -65,20 +65,30 @@ module.exports = async (req, res) => {
   if (order.fulfillment) noteParts.push(order.fulfillment);
   if (order.readyDate) noteParts.push('Ready ' + order.readyDate);
   if (order.name) noteParts.push('Name: ' + order.name);
-  if (order.contact) noteParts.push('Contact: ' + order.contact);
+  if (order.email) noteParts.push('Email: ' + order.email);
+  if (order.phone) noteParts.push('Phone: ' + order.phone);
   if (order.note) noteParts.push('Note: ' + order.note);
+
+  // These land back in our hands via the Square webhook once payment
+  // completes (see api/square-webhook.js) — that's what lets us create a
+  // matching order in iBakePro without guessing anything from free text.
+  const metadata = {
+    source: 'sourpuss-website',
+    fulfillment_type: order.fulfillmentType === 'pickup' ? 'pickup' : 'delivery',
+    fulfillment_title: String(order.fulfillment || '').slice(0, 200),
+    ready_date_iso: String(order.readyDateISO || '').slice(0, 40),
+    customer_name: String(order.name || '').slice(0, 200),
+    customer_email: String(order.email || '').slice(0, 200),
+    customer_phone: String(order.phone || '').slice(0, 60),
+    customer_note: String(order.note || '').slice(0, 255)
+  };
 
   const body = {
     idempotency_key: randomId(),
     order: {
       location_id: LOCATION_ID,
       line_items: lineItems,
-      // Square keeps a running note on the order — this is how the fulfillment
-      // day, ready date, and customer's contact info reach Elizabeth's Square
-      // dashboard alongside the paid order.
-      // (See README.md for a note on upgrading this to Square's structured
-      // "fulfillments" field for pickup/delivery scheduling.)
-      metadata: { source: 'sourpuss-website' }
+      metadata: metadata
     },
     checkout_options: {
       redirect_url: SITE_URL.replace(/\/$/, '') + '/#order',

@@ -568,8 +568,12 @@
             <input type="text" id="custName" placeholder="Your name" autocomplete="name">
           </div>
           <div class="field">
-            <label for="custPhone">Phone or email</label>
-            <input type="text" id="custPhone" placeholder="Best way to reach you" autocomplete="tel">
+            <label for="custEmail">Email</label>
+            <input type="email" id="custEmail" placeholder="you@email.com" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="custPhone">Phone (optional)</label>
+            <input type="tel" id="custPhone" placeholder="Best number to reach you" autocomplete="tel">
           </div>
           <div class="field">
             <label for="custNote">Anything else? (special flavor request, allergies, etc.)</label>
@@ -904,17 +908,39 @@
   }
   renderSummary();
 
+  // ---------- Shared helpers ----------
+  function getFulfillmentInfo(){
+    if(!state.fulfillment) return null;
+    var opt = FULFILLMENT.filter(function(o){ return o.id === state.fulfillment; })[0];
+    var readyDate = nextAvailableDate(opt.weekday);
+    return {
+      opt: opt,
+      readyDate: readyDate,
+      readyDateDisplay: readyDate.toLocaleDateString('en-US', DATE_FMT),
+      readyDateISO: readyDate.toISOString().slice(0, 10),
+      type: opt.id === 'lee' ? 'pickup' : 'delivery'
+    };
+  }
+
+  function getCustomerInfo(){
+    return {
+      name: document.getElementById('custName').value.trim(),
+      email: document.getElementById('custEmail').value.trim(),
+      phone: document.getElementById('custPhone').value.trim(),
+      note: document.getElementById('custNote').value.trim()
+    };
+  }
+
   // ---------- Build order text ----------
   function buildOrderText(){
     var items = getSelectedItems();
-    var name = document.getElementById('custName').value.trim();
-    var contact = document.getElementById('custPhone').value.trim();
-    var note = document.getElementById('custNote').value.trim();
+    var cust = getCustomerInfo();
     var lines = [];
     lines.push('New bagel order request — SourPuss NH Bakery');
     lines.push('');
-    lines.push('Name: ' + (name || '(not provided)'));
-    lines.push('Contact: ' + (contact || '(not provided)'));
+    lines.push('Name: ' + (cust.name || '(not provided)'));
+    lines.push('Email: ' + (cust.email || '(not provided)'));
+    lines.push('Phone: ' + (cust.phone || '(not provided)'));
     lines.push('');
     lines.push('Order:');
     if(items.length === 0){
@@ -927,17 +953,16 @@
     var totalPrice = items.reduce(function(sum,f){ return sum + state.qty[f.id]*f.price; }, 0);
     lines.push('  Estimated total: $' + totalPrice.toFixed(2));
     lines.push('');
-    if(state.fulfillment){
-      var opt = FULFILLMENT.filter(function(o){ return o.id === state.fulfillment; })[0];
-      var readyDate = nextAvailableDate(opt.weekday);
-      lines.push('Fulfillment: ' + opt.title + ' (' + opt.meta + ')');
-      lines.push('Requested ready date: ' + readyDate.toLocaleDateString('en-US', DATE_FMT));
+    var fulfillment = getFulfillmentInfo();
+    if(fulfillment){
+      lines.push('Fulfillment: ' + fulfillment.opt.title + ' (' + fulfillment.opt.meta + ')');
+      lines.push('Requested ready date: ' + fulfillment.readyDateDisplay);
     } else {
       lines.push('Fulfillment: (not selected yet)');
     }
-    if(note){
+    if(cust.note){
       lines.push('');
-      lines.push('Note from customer: ' + note);
+      lines.push('Note from customer: ' + cust.note);
     }
     return lines.join('\n');
   }
@@ -962,15 +987,23 @@
       showToast('Choose a pickup or delivery day first.');
       return;
     }
-    var opt = FULFILLMENT.filter(function(o){ return o.id === state.fulfillment; })[0];
-    var readyDate = nextAvailableDate(opt.weekday);
+    var cust = getCustomerInfo();
+    if(!cust.email || cust.email.indexOf('@') === -1){
+      showToast('Please enter a valid email so we can confirm your order.');
+      document.getElementById('custEmail').focus();
+      return;
+    }
+    var fulfillment = getFulfillmentInfo();
     var payload = {
       items: items.map(function(f){ return { name: f.name, quantity: state.qty[f.id], price: f.price }; }),
-      fulfillment: opt.title,
-      readyDate: readyDate.toLocaleDateString('en-US', DATE_FMT),
-      name: document.getElementById('custName').value.trim(),
-      contact: document.getElementById('custPhone').value.trim(),
-      note: document.getElementById('custNote').value.trim()
+      fulfillment: fulfillment.opt.title,
+      fulfillmentType: fulfillment.type,
+      readyDate: fulfillment.readyDateDisplay,
+      readyDateISO: fulfillment.readyDateISO,
+      name: cust.name,
+      email: cust.email,
+      phone: cust.phone,
+      note: cust.note
     };
 
     var btn = document.getElementById('sendOrderBtn');
@@ -1011,11 +1044,55 @@
       showToast('Choose a pickup or delivery day first.');
       return;
     }
-    var body = 'PAYMENT METHOD: Cash — to be paid at pickup/delivery\n\n' + buildOrderText();
-    var subject = 'Cash order — ' + (document.getElementById('custName').value.trim() || 'new customer');
-    var mailto = 'mailto:sourpussbakery79@gmail.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-    window.location.href = mailto;
-    showToast('Opening your email app to send the order — cash is due when you get your bagels.');
+    var cust = getCustomerInfo();
+    if(!cust.email || cust.email.indexOf('@') === -1){
+      showToast('Please enter a valid email so we can confirm your order.');
+      document.getElementById('custEmail').focus();
+      return;
+    }
+    var fulfillment = getFulfillmentInfo();
+    var payload = {
+      items: items.map(function(f){ return { name: f.name, quantity: state.qty[f.id], price: f.price }; }),
+      fulfillment: fulfillment.opt.title,
+      fulfillmentType: fulfillment.type,
+      readyDate: fulfillment.readyDateDisplay,
+      readyDateISO: fulfillment.readyDateISO,
+      name: cust.name,
+      email: cust.email,
+      phone: cust.phone,
+      note: cust.note
+    };
+
+    var btn = document.getElementById('cashOrderBtn');
+    var originalText = btn.textContent;
+    btn.textContent = 'Placing order…';
+    btn.disabled = true;
+
+    fetch('/api/create-cash-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(res){
+        if(!res.ok) throw new Error('cash-order-failed');
+        return res.json();
+      })
+      .then(function(data){
+        btn.textContent = originalText;
+        btn.disabled = false;
+        showToast('Order placed! Pay cash when you pick up or get your delivery.');
+      })
+      .catch(function(){
+        btn.textContent = originalText;
+        btn.disabled = false;
+        // Fallback: guarantee Elizabeth still hears about it even if the
+        // iBakePro sync isn't set up yet or is briefly unavailable.
+        var body = 'PAYMENT METHOD: Cash — to be paid at pickup/delivery\n\n' + buildOrderText();
+        var subject = 'Cash order — ' + (cust.name || 'new customer');
+        var mailto = 'mailto:sourpussbakery79@gmail.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+        window.location.href = mailto;
+        showToast('Order tracking isn\'t connected yet — opening your email app to send it instead.');
+      });
   });
 
 

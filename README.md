@@ -81,7 +81,61 @@ etc.), just replace that URL everywhere it appears — search
 `lp.constantcontactpages.com` in `index.html` and swap in the new link in
 each spot.
 
-## 5. Keeping it updated
+## 5. Order tracking in iBakePro — already wired up, needs three things
+
+Every order placed on the site — whether paid by card through Square or
+marked "Pay Cash at Pickup/Delivery" — gets created as a real order in
+Elizabeth's iBakePro account, matched against her product catalog when the
+names line up. Here's what has to be true for that to actually work:
+
+1. **Products exist in iBakePro** with names that match the site's flavor
+   names (Plain, Everything, Rosemary Garlic, etc.) — see `index.html`,
+   search `var FLAVORS`, for the exact list. A flavor whose name doesn't
+   match anything in her catalog still creates the order fine, just without
+   the product link (no cost/inventory tracking for that line) — so close
+   name matches are worth double-checking if orders look "unlinked" later.
+2. **Environment variables in Vercel** (Settings → Environment Variables):
+   - `IBAKEPRO_SECRET_KEY` — her secret key (`ibp_sk_...`), needs
+     `orders:write` and `products:read`
+   - `IBAKEPRO_REGION` — `us`, `au`, or `eu`, matching her account
+3. **A Square webhook subscription**, so the site finds out when a card
+   payment actually completes (this is separate from the checkout link
+   itself, which only creates the payment page — it has no way of knowing
+   whether someone actually paid). In the Square Developer Dashboard, open
+   your app → **Webhooks** → create a subscription:
+   - Notification URL: `https://<your-site>/api/square-webhook`
+   - Events: `payment.updated`
+
+   Do this once for **Sandbox** and once for **Production** — they're
+   separate subscriptions with separate signature keys. Square shows a
+   **Signature Key** for each one; copy the one for whichever environment
+   matches your current `SQUARE_ENV`, and add it to Vercel as
+   `SQUARE_WEBHOOK_SIGNATURE_KEY`. If you switch `SQUARE_ENV` between
+   sandbox and production, swap this key to match, the same way you already
+   swap `SQUARE_ACCESS_TOKEN` and `SQUARE_LOCATION_ID`.
+
+**How it actually flows:**
+
+- **Cash orders** call `/api/create-cash-order` directly when the customer
+  clicks the button — it creates the iBakePro order immediately, marked
+  unpaid (`payment_method: cash`), no Square involved at all.
+- **Card orders** go through `/api/create-checkout` as before to get a
+  Square checkout link. Once the customer actually pays, Square calls
+  `/api/square-webhook`, which verifies the request really came from Square,
+  looks up the full order, and creates the matching iBakePro order marked
+  as paid.
+- If the cash-order call fails for any reason (iBakePro not configured yet,
+  a network hiccup), the site falls back to opening an email to Elizabeth
+  with the order details, same as before this was wired up — so an order
+  is never silently lost.
+
+**Testing it:** place a real cash order and a real sandbox card order on the
+live site, then check Elizabeth's iBakePro dashboard for both. If a card
+order doesn't show up, check Vercel's function logs for `square-webhook` —
+a `401` there almost always means `SQUARE_WEBHOOK_SIGNATURE_KEY` doesn't
+match the environment (sandbox vs. production) currently active.
+
+## 6. Keeping it updated
 
 - **Prices / flavors:** open `index.html`, search for `var FLAVORS`, and
   edit the `price` values or add/remove flavors there. Everything else
@@ -95,7 +149,7 @@ each spot.
   filename in the `FLAVORS` list (the `photo` field) or wherever else in
   the HTML. Push to GitHub and Vercel redeploys automatically.
 
-## 6. Optional upgrade: scheduled pickup/delivery in Square
+## 7. Optional upgrade: scheduled pickup/delivery in Square
 
 Right now the fulfillment day, ready date, and customer's contact info are
 attached to the order as a note, so Elizabeth sees them in the Square
