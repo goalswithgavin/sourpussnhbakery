@@ -135,6 +135,20 @@ order doesn't show up, check Vercel's function logs for `square-webhook` —
 a `401` there almost always means `SQUARE_WEBHOOK_SIGNATURE_KEY` doesn't
 match the environment (sandbox vs. production) currently active.
 
+**Prices now flow the other direction too.** The site calls
+`/api/products` on every page load, which reads her current iBakePro
+prices and overrides whatever's hardcoded in `index.html` for any flavor
+whose name matches a product there. So once a flavor's product exists in
+iBakePro, **she changes the price in her iBakePro dashboard, and the
+website picks it up automatically** — no code edit, no redeploy. If she
+changes a price and the site doesn't reflect it, the two most likely
+reasons are (1) the product's name in iBakePro doesn't exactly match the
+flavor's name on the site, or (2) the browser cached the old price for a
+minute (the endpoint caches responses for 60 seconds to avoid hammering
+iBakePro on every visitor). A flavor with no matching product in iBakePro
+just keeps using the site's built-in price, same as before this was wired
+up.
+
 ## 6. Keeping it updated
 
 - **Prices / flavors:** open `index.html`, search for `var FLAVORS`, and

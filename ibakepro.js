@@ -22,11 +22,11 @@ function authHeaders() {
   };
 }
 
-// Fetches her product catalog and returns a Map of
-// lowercased product name -> product id, for matching order line items
-// to real catalog products. Paginates in case she has more than 100 items.
-async function getProductMap() {
-  var map = {};
+// Fetches her whole product catalog once. Paginates in case she has more
+// than 100 items. Shared by getProductMap() (name -> id, for linking order
+// lines) and listProductPrices() (name -> live price, for api/products.js).
+async function fetchAllProducts() {
+  var all = [];
   var cursor = null;
   var guard = 0; // safety valve against a pagination loop
 
@@ -38,14 +38,34 @@ async function getProductMap() {
       console.error('iBakePro products list error:', data);
       break;
     }
-    (data.data || []).forEach(function (p) {
-      if (p.name) map[p.name.trim().toLowerCase()] = p.id;
-    });
+    all = all.concat(data.data || []);
     cursor = data.pagination && data.pagination.has_more ? data.pagination.next_cursor : null;
     guard++;
   } while (cursor && guard < 20);
 
+  return all;
+}
+
+// Returns a Map of lowercased product name -> product id, for matching
+// order line items to real catalog products.
+async function getProductMap() {
+  var products = await fetchAllProducts();
+  var map = {};
+  products.forEach(function (p) {
+    if (p.name) map[p.name.trim().toLowerCase()] = p.id;
+  });
   return map;
+}
+
+// Returns [{ name, price }] using each product's starting_from — the
+// simplest live price for a product with a single plain variant and no
+// choices, which is how the bagel flavors are set up. A product with
+// required choices would show its cheapest combination, not a flat price.
+async function listProductPrices() {
+  var products = await fetchAllProducts();
+  return products
+    .filter(function (p) { return p.name && typeof p.starting_from === 'number'; })
+    .map(function (p) { return { name: p.name.trim(), price: p.starting_from }; });
 }
 
 // items: [{ name, quantity, price }]
@@ -132,4 +152,4 @@ function round2(n) {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
 
-module.exports = { getProductMap: getProductMap, createOrder: createOrder };
+module.exports = { getProductMap: getProductMap, listProductPrices: listProductPrices, createOrder: createOrder };

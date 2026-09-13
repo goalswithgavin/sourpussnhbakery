@@ -908,6 +908,32 @@
   }
   renderSummary();
 
+  // ---------- Live pricing from iBakePro ----------
+  // Pulls her current prices so the site reflects whatever she's set in her
+  // iBakePro dashboard, rather than whatever was hardcoded here last. If
+  // this fails or isn't configured yet, the built-in prices above are used
+  // as-is — ordering never breaks because of this.
+  fetch('/api/products')
+    .then(function(res){ return res.ok ? res.json() : { prices: [] }; })
+    .then(function(data){
+      var prices = (data && data.prices) || [];
+      if(prices.length === 0) return;
+      var priceMap = {};
+      prices.forEach(function(p){
+        if(p.name) priceMap[p.name.trim().toLowerCase()] = p.price;
+      });
+      var changed = false;
+      FLAVORS.forEach(function(f){
+        var live = priceMap[f.name.trim().toLowerCase()];
+        if(typeof live === 'number' && live !== f.price){
+          f.price = live;
+          changed = true;
+        }
+      });
+      if(changed) renderSummary(); // refresh the total if someone already picked items
+    })
+    .catch(function(){ /* fine — sticking with the built-in prices */ });
+
   // ---------- Shared helpers ----------
   function getFulfillmentInfo(){
     if(!state.fulfillment) return null;
