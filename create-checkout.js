@@ -40,13 +40,14 @@ module.exports = async (req, res) => {
   const ACCESS_TOKEN = process.env.SQUARE_ACCESS_TOKEN;
   const LOCATION_ID = process.env.SQUARE_LOCATION_ID;
   const ENV = process.env.SQUARE_ENV === 'production' ? 'production' : 'sandbox';
-  const SITE_URL = process.env.SITE_URL || 'https://example.com';
+  let SITE_URL = (process.env.SITE_URL || 'https://example.com').trim();
+  if (!/^https?:\/\//i.test(SITE_URL)) SITE_URL = 'https://' + SITE_URL;
   const BASE_URL = ENV === 'production'
     ? 'https://connect.squareup.com'
     : 'https://connect.squareupsandbox.com';
 
   if (!ACCESS_TOKEN || !LOCATION_ID) {
-    res.status(500).send('Square is not configured yet — missing SQUARE_ACCESS_TOKEN or SQUARE_LOCATION_ID.');
+    res.status(500).json({ error: 'not_configured', detail: 'Missing SQUARE_ACCESS_TOKEN or SQUARE_LOCATION_ID in Vercel.' });
     return;
   }
 
@@ -83,6 +84,9 @@ module.exports = async (req, res) => {
     customer_note: String(order.note || '').slice(0, 255)
   };
 
+  // Square rejects empty metadata values, so drop any blanks.
+  Object.keys(metadata).forEach((k) => { if (!metadata[k]) delete metadata[k]; });
+
   const body = {
     idempotency_key: randomId(),
     order: {
@@ -112,7 +116,13 @@ module.exports = async (req, res) => {
 
     if (!squareRes.ok) {
       console.error('Square API error:', data);
-      res.status(502).send('Square could not create the checkout page.');
+      const first = data && data.errors && data.errors[0];
+      res.status(502).json({
+        error: 'square_rejected',
+        env: ENV,
+        code: first && first.code,
+        detail: first && first.detail
+      });
       return;
     }
 

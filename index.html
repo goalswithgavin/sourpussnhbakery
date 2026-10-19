@@ -1043,7 +1043,12 @@
       body: JSON.stringify(payload)
     })
       .then(function(res){
-        if(!res.ok) throw new Error('checkout-failed');
+        if(!res.ok){
+          return res.text().then(function(t){
+            console.error('Checkout failed', res.status, t);
+            var e = new Error('checkout-failed'); e.status = res.status; throw e;
+          });
+        }
         return res.json();
       })
       .then(function(data){
@@ -1053,10 +1058,10 @@
           throw new Error('no-url');
         }
       })
-      .catch(function(){
+      .catch(function(err){
         btn.textContent = originalText;
         btn.disabled = false;
-        showToast('Checkout isn\'t connected yet — use "Copy order details" and email it for now.');
+        showToast('Card checkout hit a snag (code ' + (err && err.status ? err.status : 'network') + '). Please try again, or use Pay Cash / "Copy order details".');
       });
   });
 
